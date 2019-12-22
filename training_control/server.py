@@ -1,6 +1,4 @@
 import tornado
-
-from tornado.queues import Queue
 from tornado.web import Application, RequestHandler
 
 import os
@@ -20,6 +18,7 @@ class MainHandler(RequestHandler):
     async def get(self):
         await self.render("index.html", context={
             'experiment_name': config['experiment_name'],
+            'config': {k:v for k,v in config.items() if k != 'experiment_name'},
             'tensorboard_address': tensorboard_address,
             'controls': [c.to_dict() for c in ui],
 
@@ -34,6 +33,7 @@ class MainHandler(RequestHandler):
             '_uuid': str(uuid.uuid4())
         })
         self.write({'responses': response_history})
+
 
 def _target(port, ip, config_, ui_, request_queue_, response_queue_):
     app = Application([

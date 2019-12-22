@@ -1,6 +1,7 @@
 body {
     background: #526d99;
     overflow: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
 #main_container{
@@ -12,8 +13,7 @@ body {
     height: 100vh;
     width: 30%;
     background: #eaeaea;
-    padding: 40px;
-    border-left: 1px solid black;
+    border-left: 1px solid #c5c5c5;
 }
 
 .tb_frame {
@@ -49,11 +49,21 @@ h1 {
     padding-bottom: 10px;
     margin-top: 50px;
     display: block;
-    background-color: var(--dark);
-    color: var(--light);
+    color: var(--dark);
     font-weight: bold;
-    margin-left: 5%;
-    margin-right: 5%;
+    margin-left: 60px;
+    margin-right: 60px;
+}
+
+#controls_header {
+    text-align: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    display: block;
+    color: var(--dark);
+    font-weight: bold;
+    margin: 50px 21% 20px;
+    border-bottom: 1px solid var(--dark);
 }
 
 .response {
@@ -65,11 +75,11 @@ h1 {
 }
 
 #response_table_container {
-    margin-left: 5%;
-    margin-right: 5%;
+    margin: 0 60px;
     max-height: 300px;
     overflow-y: scroll;
     border: 1px solid #bdbdbd;
+    border-top: 1px solid black
 }
 
 .datetime {
@@ -84,3 +94,35 @@ h1 {
     margin-bottom: 5px;
 }
 
+#experiment_name {
+    text-align: center;
+    background-color: #171a1d;
+    color: #fff;
+    margin: 0;
+    height: 64px;
+    padding: 13px 16px;
+    font-size: 1.9em;
+    font-family: 'Roboto', 'Noto', sans-serif;
+    box-shadow: 0 0 5px 6px rgba(0,0,0,0.25)
+}
+
+.input_form{
+    margin: 0 20%;
+}
+
+#config_table {
+    width: 30%;
+    margin: 30px auto 20px auto;
+    text-align: center;
+    color: var(--dark);
+}
+
+#config_table th {
+    border-bottom: 1px solid black;
+}
+
+#config_table td {
+    width: 50%;
+    padding: .3em .5em;
+    text-align: left;
+}

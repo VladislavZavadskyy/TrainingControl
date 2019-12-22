@@ -13,7 +13,18 @@
         <iframe src="{{context['tensorboard_address']}}"></iframe>
     </div>
     <div id="control_container">
-        <h1 style="align-content: center">{{context["experiment_name"]}}</h1>
+        <h1 id="experiment_name">{{context["experiment_name"].upper()}}</h1>
+        {% if len(context['config']) %}
+        <table id="config_table">
+            <tr>
+            <th colspan="2">Configuration</th>
+            </tr>
+            {% for key, value in context['config'].items() %}
+            <tr><td style="font-style: italic">{{key}}</td><td style="text-align: right">{{value}}</td></tr>
+            {% end %}
+        </table>
+        {% end %}
+        <span id="controls_header">Controls</span>
         {% for c in context["controls"] %}
         <form method="post" id='{{c["name"] + "_form"}}' class="input_form">
             <div class="container">
@@ -21,7 +32,7 @@
                 <div class="row">
                     <div class="col-sm">
                         <input type="hidden" name="{{c['name']}}" value="">
-                        <input type="submit" value="{{c['description']}}" class="btn btn-primary btn-lg button">
+                        <input type="submit" value="{{c['description']}}" class="btn btn-dark btn-lg button">
                     </div>
                 </div>
                 {% elif c["type"] == "field" %}
@@ -40,7 +51,7 @@
             {% module xsrf_form_html() %}
         </form>
         {% end %}
-        <span id="response_log_header">Here be response log</span>
+        <span id="response_log_header">Response log</span>
         <div id="response_table_container">
         <table id="response_table">
             {% for response in responses %}

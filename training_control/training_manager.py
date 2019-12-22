@@ -30,12 +30,36 @@ __all__ = [
 
 class TrainingManager(SyncManager):
     def __init__(
-            self, log_metadir, models, tb_port, config, script_file, ui, tb_executable=None, tb_ip=None
+            self, log_metadir, models, tb_port, config, script_file, controls, tb_executable=None, tb_ip=None
     ):
         super().__init__()
 
         assert config is not None
+        self.config = self._filter_out_maintenance_args(script_file, config)
 
+        self.experiment_name = config['experiment_name'].lower().replace(' ', '_')
+
+        self.tb_executable = tb_executable
+        self.log_metadir = log_metadir
+        self.script_file = script_file
+
+        self.tb_port = tb_port
+        self.tb_ip = tb_ip
+
+        self.controls = controls
+        self._controls_by_name = {c.name: c for c in controls}
+        assert len(self.controls) == len(self._controls_by_name)
+
+        self.models = models
+        self._write_experiment_to_index()
+
+        self._processes_started = False
+        self.termination_list = []
+
+        self.print_config()
+
+    @staticmethod
+    def _filter_out_maintenance_args(script_file, config):
         with open(script_file) as f:
             code = f.read()
 
@@ -51,25 +75,12 @@ class TrainingManager(SyncManager):
 
             config = {k: v for k,v in config.items() if k not in maintenance_args}
 
-        self.experiment_name = config['experiment_name'].lower().replace(' ', '_')
+        return config
 
-        self.tb_executable = tb_executable
-        self.log_metadir = log_metadir
-        self.script_file = script_file
-
-        self.tb_port = tb_port
-        self.tb_ip = tb_ip
-
-        self.ui = ui
-        self._ui_by_name = {u.name: u for u in ui}
-
-        self.models = models
-        self.config = config
-
-        self._print_config()
+    def _write_experiment_to_index(self):
 
         os.makedirs(self.log_metadir, exist_ok=True)
-        self.index_path = os.path.join(log_metadir, 'index.tsv')
+        self.index_path = os.path.join(self.log_metadir, 'index.tsv')
 
         lock = FileLock(self.index_path + '.lock')
         with lock.acquire(timeout=10):
@@ -78,10 +89,10 @@ class TrainingManager(SyncManager):
             else:
                 self.index = pandas.read_csv(self.index_path, sep='\t')
 
-            config_ = {k: f'"{v}"' if isinstance(v, str) else v for k, v in config.items()}
+            config_ = {k: f'"{v}"' if isinstance(v, str) else v for k, v in self.config.items()}
             query_string = '&'.join(f'{k}=={v if isinstance(v, str) else v}' for k, v in config_.items())
 
-            try:
+            with suppress(UndefinedVariableError):
                 query_result = self.index.query(query_string)
 
                 if len(query_result) > 0:
@@ -89,9 +100,6 @@ class TrainingManager(SyncManager):
                     print('\t' + ', '.join(query_result['experiment_name'].tolist()))
                     if input('Do you wish to continue? [y/N]: ').lower() != 'y':
                         sys.exit(0)
-
-            except UndefinedVariableError:
-                pass
 
             self._prepare_directory()
             self.index = self.index.append(
@@ -103,14 +111,6 @@ class TrainingManager(SyncManager):
                 ]), sort=False, ignore_index=True)
 
             self.index.to_csv(self.index_path, '\t', index=False)
-
-        self._processes_started = False
-        self.termination_list = []
-
-    def _print_config(self):
-        print("Current configuration: ")
-        for k, v in self.config.items():
-            print(f'\t{k}: {v}')
 
     def _prepare_directory(self):
         self.log_dir = os.path.join(self.log_metadir, self.experiment_name)
@@ -137,6 +137,14 @@ class TrainingManager(SyncManager):
 
         shutil.copy(self.script_file, os.path.join(self.log_dir, 'training_script.py'))
 
+    def print_config(self):
+        print("Current configuration: ")
+        for k, v in self.config.items():
+            print(f'\t{k}: {v}')
+
+    def set_callback(self, control_name, callback):
+        self._controls_by_name[control_name].callback = callback
+
     def start_servers(self):
         if self._processes_started:
             print('Processes are already started')
@@ -153,7 +161,9 @@ class TrainingManager(SyncManager):
         self.request_queue = self.Queue()
         self.response_queue = self.Queue()
 
-        p = Process(target=_target, args=(self.tb_port+1, self.tb_ip, self.config, self.ui, self.request_queue, self.response_queue))
+        p = Process(target=_target, args=(
+            self.tb_port + 1, self.tb_ip, self.config, self.controls, self.request_queue, self.response_queue
+        ))
         p.start()
 
         self.termination_list.append(p)
@@ -211,7 +221,7 @@ class TrainingManager(SyncManager):
 
         try:
             key = next(iter(request.keys()))
-            ui_element = self._ui_by_name[key]
+            ui_element = self._controls_by_name[key]
             if isinstance(ui_element, Field):
                 response = ui_element.callback(request[key])
             elif isinstance(ui_element, Button):
@@ -219,10 +229,10 @@ class TrainingManager(SyncManager):
             else:
                 raise ValueError(f"Unknown name: {key}")
 
-            tm.response_queue.put(str(response))
+            self.response_queue.put(str(response))
 
         except Exception as e:
-            tm.response_queue.put(str(e))
+            self.response_queue.put(str(e))
 
     def __enter__(self):
         super().__enter__()
