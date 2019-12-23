@@ -222,18 +222,20 @@ class TrainingManager(SyncManager):
         if blocking:
             request = self.request_queue.get()
         else:
-            with suppress(queue.Empty):
+            try:
                 request = self.request_queue.get_nowait()
+            except queue.Empty:
+                return
 
         try:
             key = next(iter(request.keys()))
             ui_element = self._controls_by_name[key]
             if isinstance(ui_element, Field):
-                response = ui_element.callback(request[key])
+                response = ui_element.callback(request[key][0])
             elif isinstance(ui_element, Button):
                 response = ui_element.callback()
             elif isinstance(ui_element, TextArea):
-                response = ui_element.callback(request[key])
+                response = ui_element.callback(request[key][0])
             else:
                 raise ValueError(f"Unknown UI element: {ui_element}")
 
