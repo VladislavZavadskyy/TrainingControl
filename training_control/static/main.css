@@ -20,6 +20,7 @@ body {
 
 .tb_frame {
     width: 70%;
+    z-index: 9990;
 }
 
 iframe {
