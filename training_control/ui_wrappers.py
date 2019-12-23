@@ -31,3 +31,17 @@ class Field:
             'description': self.description,
             'placeholder_text': self.placeholder_text
         }
+
+
+class TextArea:
+    def __init__(self, name, description, callback):
+        self.name = name
+        self.description = description
+        self.callback = callback
+
+    def to_dict(self):
+        return {
+            'type': 'textarea',
+            'name': self.name,
+            'description': self.description,
+        }

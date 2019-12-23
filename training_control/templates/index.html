@@ -12,22 +12,24 @@
     <div class="tb_frame">
         <iframe src="{{context['tensorboard_address']}}"></iframe>
     </div>
+    <h1 id="experiment_name">{{context["experiment_name"].upper()}}</h1>
     <div id="control_container">
-        <h1 id="experiment_name">{{context["experiment_name"].upper()}}</h1>
         {% if len(context['config']) %}
         <table id="config_table">
             <tr>
-            <th colspan="2">Configuration</th>
+                <th colspan="2">Configuration</th>
             </tr>
             {% for key, value in context['config'].items() %}
-            <tr><td style="font-style: italic">{{key}}</td><td style="text-align: right">{{value}}</td></tr>
+            <tr>
+                <td style="font-style: italic">{{key}}</td>
+                <td style="text-align: right">{{value}}</td>
+            </tr>
             {% end %}
         </table>
         {% end %}
         <span id="controls_header">Controls</span>
         {% for c in context["controls"] %}
         <form method="post" id='{{c["name"] + "_form"}}' class="input_form">
-            <div class="container">
                 {% if c["type"] == "button" %}
                 <div class="row">
                     <div class="col-sm">
@@ -38,28 +40,35 @@
                 {% elif c["type"] == "field" %}
                 <div class="input-group mb-3">
                     <div class="input-group-prepend">
-                        <span class="input-group-text" id="basic-addon1">{{c["description"]}}</span>
+                        <span class="input-group-text">{{c["description"]}}</span>
                     </div>
                     <input type="text" class="form-control" name="{{c['name']}}" placeholder="Value"
                            aria-label="Value" aria-describedby="basic-addon1">
-                    <div class="input-group-append" id="button-addon4">
+                    <div class="input-group-append">
                         <button class="btn btn-outline-secondary" type="submit">Send</button>
                     </div>
                 </div>
+                {% elif c["type"] == "textarea" %}
+                <div class="textarea-group">
+                    <span class="input-group-text textarea-label">{{c["description"]}}</span>
+                    <textarea class="form-control textarea" aria-label='{{c["description"]}}' name="{{c['name']}}"></textarea>
+                    <button class="btn btn-dark textarea-button" type="submit">Send</button>
+                </div>
                 {% end %}
-            </div>
             {% module xsrf_form_html() %}
         </form>
         {% end %}
         <span id="response_log_header">Response log</span>
         <div id="response_table_container">
-        <table id="response_table">
-            {% for response in responses %}
-            <tr>
-                <td class="response" _uuid="{{response['_uuid']}}"><span class="datetime">{{response['time']}}</span>{{response['content']}}</td>
-            </tr>
-            {% end %}
-        </table>
+            <table id="response_table">
+                {% for response in responses %}
+                <tr>
+                    <td class="response" _uuid="{{response['_uuid']}}"><span
+                            class="datetime">{{response['time']}}</span>{{response['content']}}
+                    </td>
+                </tr>
+                {% end %}
+            </table>
         </div>
     </div>
 </div>

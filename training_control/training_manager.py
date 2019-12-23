@@ -21,7 +21,9 @@ from pandas.core.computation.ops import UndefinedVariableError
 from contextlib import suppress
 
 from .server import _target
-from .ui_wrappers import Field, Button
+from .ui_wrappers import Field, Button, TextArea
+
+import __main__ as main
 
 __all__ = [
     'TrainingManager'
@@ -30,21 +32,25 @@ __all__ = [
 
 class TrainingManager(SyncManager):
     def __init__(
-            self, log_metadir, models, tb_port, config, script_file, controls, tb_executable=None, tb_ip=None
+            self, log_metadir, tb_address, models, config, controls, tb_executable=None
     ):
         super().__init__()
 
         assert config is not None
-        self.config = self._filter_out_maintenance_args(script_file, config)
+
+        self.script_file = main.__file__
+        self.config = self._filter_out_maintenance_args(self.script_file, config)
 
         self.experiment_name = config['experiment_name'].lower().replace(' ', '_')
 
         self.tb_executable = tb_executable
         self.log_metadir = log_metadir
-        self.script_file = script_file
 
-        self.tb_port = tb_port
-        self.tb_ip = tb_ip
+        if not (tb_address.startswith('http://') or tb_address.startswith('https://')):
+            tb_address = 'http://' + tb_address
+
+        match = re.match('(https?://[\w\d\.]+):(\d+)', tb_address)
+        self.tb_ip, self.tb_port = match[1], int(match[2])
 
         self.controls = controls
         self._controls_by_name = {c.name: c for c in controls}
@@ -167,7 +173,7 @@ class TrainingManager(SyncManager):
         p.start()
 
         self.termination_list.append(p)
-        print(f'Started control server at {self.tb_port+1}')
+        print(f'Started control server at {self.tb_ip}:{self.tb_port+1}')
         self._processes_started = True
 
     def load_models(self, checkpoint_name):
@@ -226,8 +232,10 @@ class TrainingManager(SyncManager):
                 response = ui_element.callback(request[key])
             elif isinstance(ui_element, Button):
                 response = ui_element.callback()
+            elif isinstance(ui_element, TextArea):
+                response = ui_element.callback(request[key])
             else:
-                raise ValueError(f"Unknown name: {key}")
+                raise ValueError(f"Unknown UI element: {ui_element}")
 
             self.response_queue.put(str(response))
 

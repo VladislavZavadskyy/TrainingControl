@@ -52,11 +52,11 @@ def _target(port, ip, config_, ui_, request_queue_, response_queue_):
     global config
     global ui
 
-    tensorboard_address = 'http://' + ip + ':' + str(port - 1)
+    tensorboard_address = ip + ':' + str(port - 1)
     request_queue = request_queue_
     response_queue = response_queue_
     config = config_
     ui = ui_
 
-    app.listen(port)
+    app.listen(port, '0.0.0.0')
     tornado.ioloop.IOLoop.current().start()
