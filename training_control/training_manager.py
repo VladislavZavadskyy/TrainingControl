@@ -32,7 +32,7 @@ __all__ = [
 
 class TrainingManager(SyncManager):
     def __init__(
-            self, log_metadir, tb_address, models, config, controls, tb_executable=None
+            self, log_metadir, tb_address, models, config, controls, tb_executable=None, save_every=1000
     ):
         super().__init__()
 
@@ -62,7 +62,20 @@ class TrainingManager(SyncManager):
         self._processes_started = False
         self.termination_list = []
 
+        self.steps_per_epoch = 0
+        self.global_step = 0
+
+        self.save_every = save_every
+
         self.print_config()
+
+    @property
+    def epoch(self):
+        return self.global_step // self.steps_per_epoch
+
+    @property
+    def epoch_step(self):
+        return self.global_step % self.steps_per_epoch
 
     @staticmethod
     def _filter_out_maintenance_args(script_file, config):
@@ -121,22 +134,28 @@ class TrainingManager(SyncManager):
     def _prepare_directory(self):
         self.log_dir = os.path.join(self.log_metadir, self.experiment_name)
 
-        while os.path.exists(self.log_dir):
+        if os.path.exists(self.log_dir):
             answ = input(
-                f'Logging directory for experiment name "{self.experiment_name}"" already exists. Overwrite? [y/N]: '
+                f'Logging directory for experiment name "{self.experiment_name}" already exists. '
+                'Overwrite TB events? [y/N]: '
             )
             if answ.lower() == 'y':
-                shutil.rmtree(self.log_dir)
-                self.index = self.index[self.index['experiment_name'] != self.config['experiment_name']]
-            else:
-                sys.exit(0)
+                if input(
+                    f'Would you like to make a backup? [Y/n]: '
+                ) != 'n':
+                    print('Backing up...')
+                    shutil.make_archive(
+                        os.path.join(self.log_metadir, f'{self.experiment_name}_backup'), 'zip', self.log_dir
+                    )
 
-        print(f'Writing logs to {self.log_dir}')
+                for f in os.listdir(self.log_dir):
+                    if 'events.out.tfevents' in f:
+                        os.remove(os.path.join(self.log_dir, f))
+
+            self.index = self.index[self.index['experiment_name'] != self.config['experiment_name']]
 
         os.makedirs(self.log_dir, exist_ok=True)
-        for f in os.listdir(self.log_dir):
-            if 'events.out.tfevents' in f:
-                os.remove(os.path.join(self.log_dir, f))
+        print(f'Writing logs to {self.log_dir}')
 
         with open(os.path.join(self.log_dir, 'experiment_config.json'), 'w') as f:
             json.dump(self.config, f)
@@ -202,8 +221,20 @@ class TrainingManager(SyncManager):
 
                 print(f'Loaded {k} state from {checkpoint_path} successfully.')
             else:
-                print(f'Couldn\'t find state for {k} in {os.path.dirname(checkpoint_path)}.')
+                print(f'Couldn\'t find state for {k} in {os.path.dirname(checkpoint_path)}')
                 if input('Continue? [Y/n]').lower() == 'n': sys.exit(0)
+
+        meta_path = os.path.join(self.log_dir, checkpoint_name, 'meta.json')
+        if not os.path.exists(meta_path):
+            abspath = os.path.join(checkpoint_name, f'meta.json')
+            if os.path.exists(abspath):
+                meta_path = abspath
+
+        if os.path.exists(meta_path):
+            with open(os.path.join(self.log_dir, checkpoint_name, 'meta.json'), 'r') as f:
+                meta = json.load(f)
+
+            self.global_step = meta['global_step']
 
     def save_models(self, name='latest'):
         os.makedirs(os.path.join(self.log_dir, name), exist_ok=True)
@@ -216,9 +247,20 @@ class TrainingManager(SyncManager):
                 torch.save(v, os.path.join(self.log_dir, name, f'{k}.pth'))
             else:
                 torch.save(v.state_dict(), os.path.join(self.log_dir, name, f'{k}.pth'))
+
+        with open(os.path.join(self.log_dir, name, 'meta.json'), 'w') as f:
+            json.dump({
+                'global_step': self.global_step,
+            }, f)
+
         return os.path.join(self.log_dir, name)
 
     def update(self, blocking=False):
+
+        if self.global_step % self.save_every == (self.save_every - 1):
+            self.save_models()
+        self.global_step += 1
+
         if blocking:
             request = self.request_queue.get()
         else:

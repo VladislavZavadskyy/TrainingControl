@@ -43,7 +43,7 @@ def _target(port, ip, config_, ui_, request_queue_, response_queue_):
         template_path=os.path.join(os.path.dirname(__file__), "templates"),
         static_path=os.path.join(os.path.dirname(__file__), "static"),
         xsrf_cookies=True,
-        debug=True,
+        debug=False,
     )
 
     global tensorboard_address
