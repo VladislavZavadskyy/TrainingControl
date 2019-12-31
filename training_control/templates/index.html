@@ -22,7 +22,7 @@
             {% for key, value in context['config'].items() %}
             <tr>
                 <td style="font-style: italic">{{key}}</td>
-                <td style="text-align: right">{{value}}</td>
+                <td style="text-align: right" id="{{key}}_value">{{value}}</td>
             </tr>
             {% end %}
         </table>

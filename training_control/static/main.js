@@ -51,6 +51,17 @@ function newMessage(form) {
                 td.appendChild(date_span);
                 td.appendChild(document.createTextNode(response['content']));
                 message_container.appendChild(tr);
+
+                if (response['success']) {
+                    let message_keys = Object.keys(message);
+                    message_keys.pop('_xsrf');
+                    let form_key = message_keys[0];
+
+                    let value_cell = $('#' + form_key + '_value');
+                    if (value_cell) {
+                        value_cell[0].innerText = message[form_key];
+                    }
+                }
             }
             return false;
         }

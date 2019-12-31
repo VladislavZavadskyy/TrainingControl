@@ -4,6 +4,7 @@ from tornado.web import Application, RequestHandler
 import os
 from datetime import datetime
 import uuid
+import json
 
 request_queue = None
 response_queue = None
@@ -25,17 +26,26 @@ class MainHandler(RequestHandler):
         }, responses=response_history)
 
     def post(self):
-        request_queue.put({k:v for k,v in self.request.arguments.items() if k != '_xsrf'})
-        response = response_queue.get()
+        request_without_csrf = {
+            k: v[0].decode("utf-8") for k, v in self.request.arguments.items() if k != '_xsrf'
+        }
+        request_queue.put(request_without_csrf)
+
+        key = next(iter(request_without_csrf.keys()))
+        if key in config:
+            config[key] = request_without_csrf[key]
+
+        response = json.loads(response_queue.get())
         response_history.append({
             'time': datetime.now().strftime('%d %b %Y, %H:%M'),
-            'content': response,
+            'content': response['content'],
+            'success': response['success'],
             '_uuid': str(uuid.uuid4())
         })
         self.write({'responses': response_history})
 
 
-def _target(port, ip, config_, ui_, request_queue_, response_queue_):
+def launch(port, ip, config_, ui_, request_queue_, response_queue_):
     app = Application([
         (r"/", MainHandler)
     ],

@@ -20,7 +20,7 @@ import sys
 from pandas.core.computation.ops import UndefinedVariableError
 from contextlib import suppress
 
-from .server import _target
+from . import server
 from .ui_wrappers import Field, Button, TextArea
 
 import __main__ as main
@@ -186,7 +186,7 @@ class TrainingManager(SyncManager):
         self.request_queue = self.Queue()
         self.response_queue = self.Queue()
 
-        p = Process(target=_target, args=(
+        p = Process(target=server.launch, args=(
             self.tb_port + 1, self.tb_ip, self.config, self.controls, self.request_queue, self.response_queue
         ))
         p.start()
@@ -273,18 +273,22 @@ class TrainingManager(SyncManager):
             key = next(iter(request.keys()))
             ui_element = self._controls_by_name[key]
             if isinstance(ui_element, Field):
-                response = ui_element.callback(request[key][0])
+                response = ui_element.callback(request[key])
             elif isinstance(ui_element, Button):
                 response = ui_element.callback()
             elif isinstance(ui_element, TextArea):
-                response = ui_element.callback(request[key][0])
+                response = ui_element.callback(request[key])
             else:
                 raise ValueError(f"Unknown UI element: {ui_element}")
 
-            self.response_queue.put(str(response))
+            self.response_queue.put(json.dumps(
+                {'content': response, 'success': True}
+            ))
 
         except Exception as e:
-            self.response_queue.put(str(e))
+            self.response_queue.put(json.dumps(
+                {'content': str(e), 'success': False}
+            ))
 
     def __enter__(self):
         super().__enter__()
