@@ -131,6 +131,12 @@ class TrainingManager(SyncManager):
 
             self.index.to_csv(self.index_path, '\t', index=False)
 
+    def __init_response_log(self, reinit=False):
+        log_path = os.path.join(self.log_dir, 'response.log')
+        if not reinit and os.path.exists(log_path): return
+        with open(log_path, 'w') as f:
+            f.write('timestamp\trequest_key\trequest_value\tresponse\tresponse_status\n')
+
     def _prepare_directory(self):
         self.log_dir = os.path.join(self.log_metadir, self.experiment_name)
 
@@ -152,10 +158,13 @@ class TrainingManager(SyncManager):
                     if 'events.out.tfevents' in f:
                         os.remove(os.path.join(self.log_dir, f))
 
+                self.__init_response_log(True)
+
             self.index = self.index[self.index['experiment_name'] != self.config['experiment_name']]
 
         os.makedirs(self.log_dir, exist_ok=True)
         print(f'Writing logs to {self.log_dir}')
+        self.__init_response_log(False)
 
         with open(os.path.join(self.log_dir, 'experiment_config.json'), 'w') as f:
             json.dump(self.config, f)
@@ -281,14 +290,21 @@ class TrainingManager(SyncManager):
             else:
                 raise ValueError(f"Unknown UI element: {ui_element}")
 
-            self.response_queue.put(json.dumps(
-                {'content': response, 'success': True}
-            ))
+            response = {'content': response, 'success': True}
 
         except Exception as e:
-            self.response_queue.put(json.dumps(
-                {'content': str(e), 'success': False}
-            ))
+
+            response = {'content': str(e), 'success': False}
+
+        self.response_queue.put(json.dumps(response))
+
+    def __log_response(self, request, response):
+        with open(os.path.join(self.log_dir, 'response.log'), 'a') as f:
+            timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            request_key = next(iter(request.keys()))
+            f.write(
+                f'{timestamp}\t{request_key}\t{request[request_key]}\t'
+                f'{response["content"]}\t{"success" if response["success"] else "failure"}\n')
 
     def __enter__(self):
         super().__enter__()
