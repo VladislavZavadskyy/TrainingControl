@@ -141,7 +141,7 @@ class TrainingManager(SyncManager):
     def _prepare_directory(self):
         self.log_dir = os.path.join(self.log_metadir, self.experiment_name)
 
-        if self.debug: shutil.rmtree(self.log_dir)
+        if self.debug and os.path.exists(self.log_dir): shutil.rmtree(self.log_dir)
         elif os.path.exists(self.log_dir):
             answ = input(
                 f'Logging directory for experiment name "{self.experiment_name}" already exists. '
