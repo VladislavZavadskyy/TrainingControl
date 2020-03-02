@@ -32,11 +32,12 @@ __all__ = [
 
 class TrainingManager(SyncManager):
     def __init__(
-            self, log_metadir, tb_address, models, config, controls, tb_executable=None, save_every=1000
+            self, log_metadir, tb_address, models, config, controls, tb_executable=None, save_every=1000, debug=False
     ):
         super().__init__()
 
         assert config is not None
+        self.debug = debug
 
         self.script_file = main.__file__
         self.config = self._filter_out_maintenance_args(self.script_file, config)
@@ -114,7 +115,7 @@ class TrainingManager(SyncManager):
             with suppress(UndefinedVariableError):
                 query_result = self.index.query(query_string)
 
-                if len(query_result) > 0:
+                if len(query_result) > 0 and not self.debug:
                     print("Experiment (or few) with the same configuration already exists: ")
                     print('\t' + ', '.join(query_result['experiment_name'].tolist()))
                     if input('Do you wish to continue? [y/N]: ').lower() != 'y':
@@ -140,7 +141,8 @@ class TrainingManager(SyncManager):
     def _prepare_directory(self):
         self.log_dir = os.path.join(self.log_metadir, self.experiment_name)
 
-        if os.path.exists(self.log_dir):
+        if self.debug: shutil.rmtree(self.log_dir)
+        elif os.path.exists(self.log_dir):
             answ = input(
                 f'Logging directory for experiment name "{self.experiment_name}" already exists. '
                 'Overwrite TB events? [y/N]: '
@@ -302,9 +304,9 @@ class TrainingManager(SyncManager):
         with open(os.path.join(self.log_dir, 'response.log'), 'a') as f:
             timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             request_key = next(iter(request.keys()))
-            f.write(
-                f'{timestamp}\t{request_key}\t{request[request_key]}\t'
-                f'{response["content"]}\t{"success" if response["success"] else "failure"}\n')
+            status = "success" if response["success"] else "failure"
+            log_string = '\t'.join((timestamp, request_key, request[request_key], response["content"], status))
+            f.write(log_string + '\n')
 
     def __enter__(self):
         super().__enter__()
