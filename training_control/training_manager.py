@@ -32,7 +32,8 @@ __all__ = [
 
 class TrainingManager(SyncManager):
     def __init__(
-            self, log_metadir, tb_address, models, config, controls, tb_executable=None, save_every=1000, debug=False
+            self, log_metadir, tb_address, models, config, controls,
+            tb_executable=None, save_every=1000, debug=False, ema_smoothing=.98
     ):
         super().__init__()
 
@@ -68,6 +69,11 @@ class TrainingManager(SyncManager):
 
         self.save_every = save_every
 
+        assert 0 <= ema_smoothing < 1
+        self.ema_smoothing = ema_smoothing
+        self.metric_ema = None
+        self.best_metric_value = None
+
         self.print_config()
 
     @property
@@ -93,7 +99,7 @@ class TrainingManager(SyncManager):
             maintenance_args = re.findall('parser.add_argument\([\'"]--([\w\d_\-]+)', code[opening:closing])
             maintenance_args = [a.replace('-', '_') for a in maintenance_args]
 
-            config = {k: v for k,v in config.items() if k not in maintenance_args}
+            config = {k: v for k, v in config.items() if k not in maintenance_args}
 
         return config
 
@@ -141,7 +147,8 @@ class TrainingManager(SyncManager):
     def _prepare_directory(self):
         self.log_dir = os.path.join(self.log_metadir, self.experiment_name)
 
-        if self.debug and os.path.exists(self.log_dir): shutil.rmtree(self.log_dir)
+        if self.debug and os.path.exists(self.log_dir):
+            shutil.rmtree(self.log_dir)
         elif os.path.exists(self.log_dir):
             answ = input(
                 f'Logging directory for experiment name "{self.experiment_name}" already exists. '
@@ -149,7 +156,7 @@ class TrainingManager(SyncManager):
             )
             if answ.lower() == 'y':
                 if input(
-                    f'Would you like to make a backup? [Y/n]: '
+                        f'Would you like to make a backup? [Y/n]: '
                 ) != 'n':
                     print('Backing up...')
                     shutil.make_archive(
@@ -203,7 +210,7 @@ class TrainingManager(SyncManager):
         p.start()
 
         self.termination_list.append(p)
-        print(f'Started control server at {self.tb_ip}:{self.tb_port+1}')
+        print(f'Started control server at {self.tb_ip}:{self.tb_port + 1}')
         self._processes_started = True
 
     def load_models(self, checkpoint_name):
@@ -252,11 +259,27 @@ class TrainingManager(SyncManager):
         for k, v in self.models.items():
             if isinstance(v, torch.nn.DataParallel):
                 v = v.module
+
             if isinstance(v, torch.optim.Optimizer):
+                if any((i != i).any() for i in v.state.values()) and input(
+                        f"NaN values encountered in {k} optimizer state, continue saving [y/N]: "
+                ).strip().lower() != 'y':
+                    sys.exit(1)
+
                 torch.save(v.state, os.path.join(self.log_dir, name, f'{k}.pth'))
             elif isinstance(v, torch.nn.Parameter):
+                if (v != v).any() and input(
+                        f"NaN values encountered in {k} parameter, continue saving [y/N]: "
+                ).strip().lower() != 'y':
+                    sys.exit(1)
+
                 torch.save(v, os.path.join(self.log_dir, name, f'{k}.pth'))
             else:
+                if any((i != i).any() for i in v.state_dict().values()) and input(
+                        f"NaN values encountered in {k} state dict, continue saving [y/N]: "
+                ).strip().lower() != 'y':
+                    sys.exit(1)
+
                 torch.save(v.state_dict(), os.path.join(self.log_dir, name, f'{k}.pth'))
 
         with open(os.path.join(self.log_dir, name, 'meta.json'), 'w') as f:
@@ -266,7 +289,19 @@ class TrainingManager(SyncManager):
 
         return os.path.join(self.log_dir, name)
 
-    def update(self, blocking=False):
+    def update(self, metric=None, blocking=False):
+        if metric is not None:
+            if metric != metric and input("Metric value is NaN, continue [y/N]: ").lower().strip() != 'y':
+                sys.exit(1)
+
+            if self.metric_ema is None:
+                self.metric_ema = metric
+                self.best_metric_value = metric
+            else:
+                self.metric_ema = self.metric_ema * self.ema_smoothing + metric * (1 - self.ema_smoothing)
+                if self.metric_ema > self.best_metric_value and \
+                        self.global_step % self.save_every == (self.save_every - 1):
+                    self.save_models('bestest')
 
         if self.global_step % self.save_every == (self.save_every - 1):
             self.save_models()
