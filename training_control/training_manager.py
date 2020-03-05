@@ -33,7 +33,8 @@ __all__ = [
 class TrainingManager(SyncManager):
     def __init__(
             self, log_metadir, tb_address, models, config, controls,
-            tb_executable=None, save_every=1000, debug=False, ema_smoothing=.98
+            tb_executable=None, save_every=1000, save_best_every=500,
+            debug=False, ema_smoothing=.98
     ):
         super().__init__()
 
@@ -68,11 +69,12 @@ class TrainingManager(SyncManager):
         self.global_step = 0
 
         self.save_every = save_every
+        self.save_best_every = save_best_every
 
         assert 0 <= ema_smoothing < 1
         self.ema_smoothing = ema_smoothing
         self.metric_ema = None
-        self.best_metric_value = None
+        self.best_saved_metric_value = None
 
         self.print_config()
 
@@ -296,12 +298,13 @@ class TrainingManager(SyncManager):
 
             if self.metric_ema is None:
                 self.metric_ema = metric
-                self.best_metric_value = metric
+                self.best_saved_metric_value = metric
             else:
                 self.metric_ema = self.metric_ema * self.ema_smoothing + metric * (1 - self.ema_smoothing)
-                if self.metric_ema > self.best_metric_value and \
-                        self.global_step % self.save_every == (self.save_every - 1):
+                if self.metric_ema > self.best_saved_metric_value and\
+                        self.global_step % self.save_best_every == (self.save_best_every - 1):
                     self.save_models('bestest')
+                    self.best_saved_metric_value = self.metric_ema
 
         if self.global_step % self.save_every == (self.save_every - 1):
             self.save_models()
