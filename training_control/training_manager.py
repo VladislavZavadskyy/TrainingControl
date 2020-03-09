@@ -263,21 +263,21 @@ class TrainingManager(SyncManager):
                 v = v.module
 
             if isinstance(v, torch.optim.Optimizer):
-                if any((i != i).any() for i in v.state.values()) and input(
+                if any(i != i if isinstance(i != i, bool) else (i!=i).any() for i in v.state.values()) and input(
                         f"NaN values encountered in {k} optimizer state, continue saving [y/N]: "
                 ).strip().lower() != 'y':
                     sys.exit(1)
 
                 torch.save(v.state, os.path.join(self.log_dir, name, f'{k}.pth'))
             elif isinstance(v, torch.nn.Parameter):
-                if (v != v).any() and input(
+                if (v != v if isinstance(v != v, bool) else (v != v).any()) and input(
                         f"NaN values encountered in {k} parameter, continue saving [y/N]: "
                 ).strip().lower() != 'y':
                     sys.exit(1)
 
                 torch.save(v, os.path.join(self.log_dir, name, f'{k}.pth'))
             else:
-                if any((i != i).any() for i in v.state_dict().values()) and input(
+                if any(i != i if isinstance(i != i, bool) else (i!=i).any() for i in v.state_dict().values()) and input(
                         f"NaN values encountered in {k} state dict, continue saving [y/N]: "
                 ).strip().lower() != 'y':
                     sys.exit(1)
